@@ -1,0 +1,12 @@
+name: build-atlas-artifacts
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: Itexoft/DevOpsKit/.github/workflows/go-multi-rid-build.yml@master
+    with:
+      project_name: atlas
+      build_targets: cmd/atlas,cmd/atlas-ef
