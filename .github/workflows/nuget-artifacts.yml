@@ -1,0 +1,38 @@
+name: nuget-artifacts
+
+on:
+  workflow_run:
+    workflows: [build-artifacts]
+    types: [completed]
+  workflow_dispatch:
+
+env:
+  BUILD_WORKFLOW: build-artifacts
+
+jobs:
+  get-run-id:
+    runs-on: ubuntu-latest
+    outputs:
+      nuget_rid: ${{ steps.determine.outputs.nuget_rid }}
+    steps:
+      - name: Determine last successful run ID
+        id: determine
+        uses: Itexoft/DevOpsKit/.github/actions/get-last-success-workflow-run-id@master
+        with:
+          build_workflow: build-artifacts
+          branch: ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pack:
+    needs: get-run-id
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    uses: Itexoft/DevOpsKit/.github/workflows/nuget-package-publish.yml@master
+    secrets: inherit
+    with:
+      project_name: atlas.cli
+      csproj_path: nuget/Atlas.Cli.csproj
+      publish_branch: master
+      publish: false
+      artifacts_run_id: ${{ needs.get-run-id.outputs.nuget_rid }}
+      artifacts_prefix: atlas
