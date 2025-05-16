@@ -33,6 +33,6 @@ jobs:
       project_name: atlas.cli
       csproj_path: nuget/Atlas.Cli.csproj
       publish_branch: master
-      publish: false
+      publish: true
       artifacts_run_id: ${{ needs.get-run-id.outputs.nuget_rid }}
       artifacts_prefix: atlas

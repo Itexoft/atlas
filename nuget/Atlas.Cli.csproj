@@ -4,7 +4,7 @@
     <PackageId>Atlas.Cli</PackageId>
     <TargetFramework>net6.0</TargetFramework>
     <RollForward>Major</RollForward>
-    <Version>1.3.2.1</Version>
+    <Version>0.3.3.1</Version>
     <Description>Cross-platform CLI tool for Atlas.</Description>
     <Authors>Denis Kudelin</Authors>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -15,7 +15,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackAsTool>true</PackAsTool>
     <PackageType>DotnetTool</PackageType>
-    <ToolCommandName>dotnet-atlas</ToolCommandName>
+    <ToolCommandName>atlas</ToolCommandName>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
