@@ -14,11 +14,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
 
 	"ariga.io/atlas/cmd/atlas/internal/cmdext"
-	"ariga.io/atlas/cmd/atlas/internal/cmdlog"
 	"ariga.io/atlas/sql/migrate"
 	"ariga.io/atlas/sql/schema"
 	"ariga.io/atlas/sql/sqlclient"
@@ -48,6 +46,7 @@ type schemaApplyFlags struct {
 	planURL     string        // URL to a pre-planned migration.
 	schemas     []string      // Schemas to take into account when diffing.
 	exclude     []string      // List of glob patterns used to filter resources from applying (see schema.InspectOptions).
+	include     []string      // List of glob patterns used to include (only) resources in applying.
 	dryRun      bool          // Only show SQL on screen instead of applying it.
 	edit        bool          // Open the generated SQL in an editor.
 	autoApprove bool          // Don't prompt for approval before applying SQL.
@@ -116,6 +115,7 @@ migration.`,
 	addFlagURL(cmd.Flags(), &flags.url)
 	addFlagToURLs(cmd.Flags(), &flags.toURLs)
 	addFlagExclude(cmd.Flags(), &flags.exclude)
+	addFlagInclude(cmd.Flags(), &flags.include)
 	addFlagSchemas(cmd.Flags(), &flags.schemas)
 	addFlagDevURL(cmd.Flags(), &flags.devURL)
 	addFlagDryRun(cmd.Flags(), &flags.dryRun)
@@ -243,6 +243,7 @@ type schemaDiffFlags struct {
 	devURL  string
 	schemas []string
 	exclude []string
+	include []string
 	format  string
 }
 
@@ -283,67 +284,11 @@ The database states can be read from a connected database, an HCL project or a m
 	addFlagDevURL(cmd.Flags(), &flags.devURL)
 	addFlagSchemas(cmd.Flags(), &flags.schemas)
 	addFlagExclude(cmd.Flags(), &flags.exclude)
+	addFlagInclude(cmd.Flags(), &flags.include)
 	addFlagFormat(cmd.Flags(), &flags.format)
 	cobra.CheckErr(cmd.MarkFlagRequired(flagFrom))
 	cobra.CheckErr(cmd.MarkFlagRequired(flagTo))
 	return cmd, &flags
-}
-
-func schemaDiffRun(cmd *cobra.Command, _ []string, flags schemaDiffFlags, env *Env) error {
-	var (
-		ctx = cmd.Context()
-		c   *sqlclient.Client
-	)
-	// We need a driver for diffing and planning. If given, dev database has precedence.
-	if flags.devURL != "" {
-		var err error
-		c, err = sqlclient.Open(ctx, flags.devURL)
-		if err != nil {
-			return err
-		}
-		defer c.Close()
-	}
-	from, err := stateReader(ctx, env, &stateReaderConfig{
-		urls:    flags.fromURL,
-		dev:     c,
-		vars:    env.Vars(),
-		schemas: flags.schemas,
-		exclude: flags.exclude,
-	})
-	if err != nil {
-		return err
-	}
-	defer from.Close()
-	to, err := stateReader(ctx, env, &stateReaderConfig{
-		urls:    flags.toURL,
-		dev:     c,
-		vars:    env.Vars(),
-		schemas: flags.schemas,
-		exclude: flags.exclude,
-	})
-	if err != nil {
-		return err
-	}
-	defer to.Close()
-	if c == nil {
-		// If not both states are provided by a database connection, the call to state-reader would have returned
-		// an error already. If we land in this case, we can assume both states are database connections.
-		c = to.Closer.(*sqlclient.Client)
-	}
-	format := cmdlog.SchemaDiffTemplate
-	if v := flags.format; v != "" {
-		if format, err = template.New("format").Funcs(cmdlog.SchemaDiffFuncs).Parse(v); err != nil {
-			return fmt.Errorf("parse log format: %w", err)
-		}
-	}
-	diff, err := computeDiff(ctx, c, from, to, diffOptions(cmd, env)...)
-	if err != nil {
-		return err
-	}
-	maySuggestUpgrade(cmd)
-	return format.Execute(cmd.OutOrStdout(),
-		cmdlog.NewSchemaDiff(ctx, c, diff.from, diff.to, diff.changes),
-	)
 }
 
 // schemaFmtCmd represents the 'atlas schema fmt' subcommand.
@@ -442,6 +387,9 @@ func setSchemaEnvFlags(cmd *cobra.Command, env *Env) error {
 		return err
 	}
 	if err := maySetFlag(cmd, flagExclude, strings.Join(env.Exclude, ",")); err != nil {
+		return err
+	}
+	if err := maySetFlag(cmd, flagInclude, strings.Join(env.Include, ",")); err != nil {
 		return err
 	}
 	switch cmd.Name() {
